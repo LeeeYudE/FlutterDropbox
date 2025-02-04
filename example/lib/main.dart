@@ -4,13 +4,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:dropbox_client/dropbox_client.dart';
+import 'package:dropbox_client/dropbox_list_model.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const String dropbox_clientId = 'test-flutter-dropbox';
-const String dropbox_key = 'dropbox_key';
-const String dropbox_secret = 'dropbox_secret';
+const String dropbox_clientId = 'lqzc8thbe5a56q3';
+const String dropbox_key = 'lqzc8thbe5a56q3';
+const String dropbox_secret = 'o661ll057z1uskl';
 
 void main() {
   return runApp(MyApp());
@@ -28,7 +29,7 @@ class Home extends StatefulWidget {
   _HomeState createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> {
+class _HomeState extends State<Home> with WidgetsBindingObserver {
   String? accessToken;
   String? credentials;
   bool showInstruction = false;
@@ -36,8 +37,15 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
-
     initDropbox();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      getAccessToken();
+    }
   }
 
   Future initDropbox() async {
@@ -51,14 +59,14 @@ class _HomeState extends State<Home> {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     accessToken = prefs.getString('dropboxAccessToken');
     credentials = prefs.getString('dropboxCredentials');
-
+    print('accessToken = $accessToken');
     setState(() {});
   }
 
   Future<bool> checkAuthorized(bool authorize) async {
     final _credentials = await Dropbox.getCredentials();
     if (_credentials != null) {
-      if (credentials == null || _credentials!.isEmpty) {
+      if (credentials == null || _credentials.isEmpty) {
         credentials = _credentials;
         SharedPreferences prefs = await SharedPreferences.getInstance();
         prefs.setString('dropboxCredentials', credentials!);
@@ -104,6 +112,15 @@ class _HomeState extends State<Home> {
     await Dropbox.authorize();
   }
 
+  Future getAccessToken() async {
+    var _getAccessToken = await Dropbox.getAccessToken();
+    if(_getAccessToken != null){
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      prefs.setString('dropboxAccessToken', _getAccessToken);
+    }
+    print('_getAccessToken = $_getAccessToken');
+  }
+
   Future authorizePKCE() async {
     await Dropbox.authorizePKCE();
   }
@@ -145,6 +162,7 @@ class _HomeState extends State<Home> {
 
   Future listFolder(path) async {
     if (await checkAuthorized(true)) {
+      // Navigator.of(context).push(MaterialPageRoute(builder: (context) => DropboxListPage(path: '')));
       final result = await Dropbox.listFolder(path);
       setState(() {
         list.clear();
@@ -157,11 +175,9 @@ class _HomeState extends State<Home> {
     if (await checkAuthorized(true)) {
       var tempDir = await getTemporaryDirectory();
       var filepath = '${tempDir.path}/test_upload.txt';
-      File(filepath).writeAsStringSync(
-          'contents.. from ' + (Platform.isIOS ? 'iOS' : 'Android') + '\n');
+      File(filepath).writeAsStringSync('contents.. from ' + (Platform.isIOS ? 'iOS' : 'Android') + '\n');
 
-      final result =
-          await Dropbox.upload(filepath, '/test_upload.txt', (uploaded, total) {
+      final result = await Dropbox.upload(filepath, '/test_upload.txt', (uploaded, total) {
         print('progress $uploaded / $total');
       });
       print(result);
@@ -174,8 +190,7 @@ class _HomeState extends State<Home> {
       var filepath = '${tempDir.path}/test_download.zip'; // for iOS only!!
       print(filepath);
 
-      final result = await Dropbox.download('/file_in_dropbox.zip', filepath,
-          (downloaded, total) {
+      final result = await Dropbox.download('/file_in_dropbox.zip', filepath, (downloaded, total) {
         print('progress $downloaded / $total');
       });
 
@@ -210,7 +225,7 @@ class _HomeState extends State<Home> {
     }
   }
 
-  final list = List<dynamic>.empty(growable: true);
+  final list = <DropboxListModel>[];
 
   @override
   Widget build(BuildContext context) {
@@ -228,15 +243,21 @@ class _HomeState extends State<Home> {
                   children: <Widget>[
                     Wrap(
                       children: <Widget>[
-                        ElevatedButton(
-                          child: Text('authorize'),
-                          onPressed: authorize,
+                        Row(
+                          children: [
+                            ElevatedButton(
+                              child: Text('authorize'),
+                              onPressed: authorize,
+                            ),
+                            ElevatedButton(
+                              child: Text('getAccessToken'),
+                              onPressed: getAccessToken,
+                            ),
+                          ],
                         ),
                         ElevatedButton(
                           child: Text('authorizeWithAccessToken'),
-                          onPressed: accessToken == null
-                              ? null
-                              : authorizeWithAccessToken,
+                          onPressed: accessToken == null ? null : authorizeWithAccessToken,
                         ),
                         ElevatedButton(
                           child: Text('unlink'),
@@ -252,9 +273,7 @@ class _HomeState extends State<Home> {
                         ),
                         ElevatedButton(
                           child: Text('authorizeWithCredentials'),
-                          onPressed: credentials == null
-                              ? null
-                              : authorizeWithCredentials,
+                          onPressed: credentials == null ? null : authorizeWithCredentials,
                         ),
                         ElevatedButton(
                           child: Text('unlink'),
@@ -303,10 +322,10 @@ class _HomeState extends State<Home> {
                         itemCount: list.length,
                         itemBuilder: (context, index) {
                           final item = list[index];
-                          final filesize = item['filesize'];
-                          final path = item['pathLower'];
+                          final filesize = item.filesize;
+                          final path = item.pathLower;
                           bool isFile = false;
-                          var name = item['name'];
+                          var name = item.name ?? '';
                           if (filesize == null) {
                             name += '/';
                           } else {
@@ -317,10 +336,9 @@ class _HomeState extends State<Home> {
                               onTap: () async {
                                 if (isFile) {
                                   final link = await getTemporaryLink(path);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                          content: Text(link ??
-                                              'getTemporaryLink error: $path')));
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(content: Text(link ?? 'getTemporaryLink error: $path')));
+                                  print('link: $link');
                                 } else {
                                   await listFolder(path);
                                 }
@@ -349,19 +367,16 @@ class Instructions extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-              'You need to get dropbox_key & dropbox_secret from https://www.dropbox.com/developers'),
+          Text('You need to get dropbox_key & dropbox_secret from https://www.dropbox.com/developers'),
           SizedBox(height: 20),
           Text('1. Update dropbox_key and dropbox_secret from main.dart'),
           SizedBox(height: 20),
-          Text(
-              "  const String dropbox_key = 'DROPBOXKEY';\n  const String dropbox_secret = 'DROPBOXSECRET';"),
+          Text("  const String dropbox_key = 'DROPBOXKEY';\n  const String dropbox_secret = 'DROPBOXSECRET';"),
           SizedBox(height: 20),
           Text(
               '2. (Android) Update dropbox_key from android/app/src/main/AndroidManifest.xml.\n  <data android:scheme="db-DROPBOXKEY" />'),
           SizedBox(height: 20),
-          Text(
-              '2. (iOS) Update dropbox_key from ios/Runner/Info.plist.\n  <string>db-DROPBOXKEY</string>'),
+          Text('2. (iOS) Update dropbox_key from ios/Runner/Info.plist.\n  <string>db-DROPBOXKEY</string>'),
         ],
       ),
     );

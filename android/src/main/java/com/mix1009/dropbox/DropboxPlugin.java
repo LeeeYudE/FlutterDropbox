@@ -359,7 +359,7 @@ public class DropboxPlugin implements FlutterPlugin, MethodCallHandler, Activity
       ListFolderResult listFolderResult = null;
       try {
         listFolderResult = DropboxPlugin.client.files().listFolder(argPaths[0]);
-        String pattern = "yyyyMMdd HHmmss";
+        String pattern = "yyyy-MM-dd HH:mm:ss";
         DateFormat df = new SimpleDateFormat(pattern);
 
         while (true) {
@@ -367,19 +367,18 @@ public class DropboxPlugin implements FlutterPlugin, MethodCallHandler, Activity
           for (Metadata metadata : listFolderResult.getEntries()) {
             Map<String, Object> map = new HashMap<>();
             map.put("name", metadata.getName());
-            map.put("pathLower", metadata.getPathLower());
-            map.put("pathDisplay", metadata.getPathDisplay());
-
+            map.put("path_lower", metadata.getPathLower());
+            map.put("path_display", metadata.getPathDisplay());
+            boolean idDir = metadata instanceof FolderMetadata;
             if (metadata instanceof FileMetadata) {
               FileMetadata fileMetadata = (FileMetadata) metadata;
               map.put("filesize", fileMetadata.getSize());
-              map.put("clientModified", df.format(fileMetadata.getClientModified()));
-              map.put("serverModified", df.format(fileMetadata.getServerModified()));
-//            } else if (metadata instanceof FolderMetadata){
-//              FolderMetadata folderMetadata = (FolderMetadata) metadata;
-
-
+              map.put("client_modified", df.format(fileMetadata.getClientModified()));
+              map.put("server_modified", df.format(fileMetadata.getServerModified()));
+           } else if (metadata instanceof FolderMetadata){
+             FolderMetadata folderMetadata = (FolderMetadata) metadata;
             }
+            map.put("id_dir", idDir);
 
             paths.add(map);
 //            paths.add(metadata.getPathLower());
@@ -393,7 +392,7 @@ public class DropboxPlugin implements FlutterPlugin, MethodCallHandler, Activity
         }
       } catch (DbxException e) {
         e.printStackTrace();
-        return e.getMessage();
+        return "error"+e.getMessage();
       }
 
       return "";
@@ -402,7 +401,11 @@ public class DropboxPlugin implements FlutterPlugin, MethodCallHandler, Activity
     @Override
     protected void onPostExecute(String r) {
       super.onPostExecute(r);
-      result.success(paths);
+      if(r.startsWith("error")) {
+        result.error("error", r, null);
+      }else{
+        result.success(paths);
+      }
     }
 
   }
@@ -425,13 +428,17 @@ public class DropboxPlugin implements FlutterPlugin, MethodCallHandler, Activity
         return link;
       } catch (DbxException e) {
         e.printStackTrace();
-        return e.getMessage();
+        return "error "+e.getMessage();
       }
     }
     @Override
     protected void onPostExecute(String r) {
       super.onPostExecute(r);
-      result.success(r);
+      if(r.startsWith("error")) {
+        result.error("error", r, null);
+      }else{
+        result.success(r);
+      }
     }
   }
 

@@ -5,6 +5,8 @@ import 'package:dropbox_client/account_info.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
+import 'dropbox_list_model.dart';
+
 typedef DropboxProgressCallback = void Function(
     int currentBytes, int totalBytes);
 
@@ -118,8 +120,9 @@ class Dropbox {
   /// get folder/file list for path.
   ///
   /// returns List<dynamic>. Use path='' for accessing root folder. List items are not sorted.
-  static Future listFolder(String path) async {
-    return await _channel.invokeMethod('listFolder', {'path': path});
+  static Future<List<DropboxListModel>> listFolder(String path) async {
+     var list = await _channel.invokeMethod('listFolder', {'path': path});
+      return list?.map<DropboxListModel>((e) => DropboxListModel.fromJson(e)).toList();
   }
 
   /// get temporary link url for file

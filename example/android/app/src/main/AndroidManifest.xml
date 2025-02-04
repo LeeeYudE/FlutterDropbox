@@ -31,7 +31,7 @@
             <intent-filter>
 
                 <!-- Change this to be db- followed by your app key -->
-                <data android:scheme="db-dropbox_key" />
+                <data android:scheme="db-lqzc8thbe5a56q3" />
 
                 <action android:name="android.intent.action.VIEW" />
 
